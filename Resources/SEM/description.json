@@ -24,6 +24,11 @@
             "title":	"Mediation Analysis",
             "qml":		"MediationAnalysis.qml",
             "function":	"MediationAnalysis"
+        },
+        {
+            "title":	"Bayesian Structural Equation Modeling",
+            "qml":		"SEMBayes.qml",
+            "function":	"SEMBayes"
         }
 	]
 }

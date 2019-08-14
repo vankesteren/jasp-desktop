@@ -532,4 +532,5 @@ RESOURCES += \
 windows:OTHER_FILES += icon.rc
 
 DISTFILES += \
+    ../Resources/SEM/qml/SEMBayes.qml \
     resources/CC-Attributions.txt
