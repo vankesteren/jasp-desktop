@@ -66,4 +66,12 @@ Form
             CheckBox { label: qsTr("Parameter diagnostics") ; name: "pardiag"  }
         }
     }
+    Section
+    {
+        title: qsTr("Additional output")
+        GroupBox
+        {
+            CheckBox { label: qsTr("Posterior plots")       ; name: "postplot" }
+        }
+    }
 }

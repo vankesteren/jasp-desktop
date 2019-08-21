@@ -25,9 +25,10 @@ SEMBayes <- function(jaspResults, dataset, options, ...) {
   modelContainer <- .bsemModelContainer(jaspResults)
   
   # Output functions
-  .bsemParTable(modelContainer, dataset, options, ready)
-  .bsemParDiag(modelContainer, dataset, options, ready)
+  .bsemParTable(  modelContainer, dataset, options, ready)
+  .bsemParDiag(   modelContainer, dataset, options, ready)
   .bsemTracePlots(modelContainer, dataset, options, ready)
+  .bsemPostPlots( modelContainer, dataset, options, ready)
 }
 
 
@@ -112,7 +113,7 @@ SEMBayes <- function(jaspResults, dataset, options, ...) {
     modelContainer <- jaspResults[["modelContainer"]]
   } else {
     modelContainer <- createJaspContainer()
-    modelContainer$dependOn("model")
+    modelContainer$dependOn(c("model", "nchains", "nsamples", "burnin"))
     jaspResults[["modelContainer"]] <- modelContainer
   }
   
@@ -133,6 +134,8 @@ SEMBayes <- function(jaspResults, dataset, options, ...) {
                        overtitle = "95% HPD interval")
   partab$addColumnInfo(name = "upper",  title = "Upper",  type = "number", format = "sf:4;dp:3", 
                        overtitle = "95% HPD interval")
+  
+  partab$position <- 1
   
   modelContainer[["partab"]] <- partab
   
@@ -200,6 +203,7 @@ SEMBayes <- function(jaspResults, dataset, options, ...) {
   diatab$addColumnInfo(name = "neff", title = "NEFF", type = "number", format = "sf:4;dp:3")
   diatab$addFootnote(message = paste("PSRF: Gelman-Rubin potential scale reduction factor,", 
                                      "NEFF: Effective sample size"))
+  diatab$position <- 2
   modelContainer[["diatab"]] <- diatab
   
   if (!ready || modelContainer$getError()) return()
@@ -222,9 +226,22 @@ SEMBayes <- function(jaspResults, dataset, options, ...) {
   if (!options[["traceplot"]] || !is.null(modelContainer[["traceplot"]]) || !ready) return()
   bsemResult <- modelContainer[["model"]][["object"]]
   traceplot <- blavaan:::plot.blavaan(bsemResult)
+  traceplot$position <- 3
   parnames <- sapply(names(blavaan::blavInspect(bsemResult, "postmean")), .decodeVarsInMessage, 
                      encodedVars = names(dataset))
   levels(traceplot[["data"]][["parameter"]]) <- parnames
   modelContainer[["traceplot"]] <- createJaspPlot(traceplot, "Trace plot", width = 640, height = 320)
   modelContainer[["traceplot"]]$dependOn("traceplot")
+}
+
+.bsemPostPlots <- function(modelContainer, dataset, options, ready) {
+  if (!options[["postplot"]] || !is.null(modelContainer[["postplot"]]) || !ready) return()
+  bsemResult <- modelContainer[["model"]][["object"]]
+  postplot <- blavaan:::plot.blavaan(bsemResult, plot.type = "dens", fill = "dark gray")
+  postplot$position <- 4
+  parnames <- sapply(names(blavaan::blavInspect(bsemResult, "postmean")), .decodeVarsInMessage, 
+                     encodedVars = names(dataset))
+  levels(postplot[["data"]][["parameter"]]) <- parnames
+  modelContainer[["postplot"]] <- createJaspPlot(postplot, "Posterior plot", width = 640, height = 320)
+  modelContainer[["postplot"]]$dependOn("postplot")
 }
