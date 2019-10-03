@@ -24,13 +24,16 @@ SEMBayes <- function(jaspResults, dataset, options, ...) {
   
   modelContainer <- .bsemModelContainer(jaspResults)
   
+  # destroy existing shiny process
+  
+  
   # Output functions
   .bsemParTable(  modelContainer, dataset, options, ready)
   .bsemParDiag(   modelContainer, dataset, options, ready)
   .bsemTracePlots(modelContainer, dataset, options, ready)
   .bsemPostPlots( modelContainer, dataset, options, ready)
   
-  .bsemShinyLaunch(modelContainer, dataset, options, ready)
+  # .bsemShinyLaunch(modelContainer, dataset, options, ready)
 }
 
 
@@ -248,22 +251,19 @@ SEMBayes <- function(jaspResults, dataset, options, ...) {
   modelContainer[["postplot"]]$dependOn("postplot")
 }
 
-.bsemShinyLaunch <- function(modelContainer, dataset, options, ready) {
-  if (!options$shinylaunch || modelContainer$getError() || !ready) return()
-  blav <- modelContainer[["model"]][["object"]]
-  
-  sso <- shinystan::as.shinystan(blav@external$mcmcout)
-  modelContainer[["shiny"]] <- createJaspHtml(
-    text = '<iframe src="127.0.0.1:8080" width="100%" height="500px"></iframe>', elementType = "div", 
-    dependencies = "shinylaunch", title = "Shiny Stan"
-  )
-  serv <- .launchShinyApp(sso)
-}
+# .bsemShinyLaunch <- function(modelContainer, dataset, options, ready) {
+#   if (modelContainer$getError() || !ready) return()
+#   blav <- modelContainer[["model"]][["object"]]
+#   
+#   sso <- shinystan::as.shinystan(blav@external$mcmcout)
+#   .launchShinyApp(sso)
+# }
 
-.launchShinyApp <- function(sso) {
-    .SHINYSTAN_OBJECT <<- sso
-    on.exit(.SHINYSTAN_OBJECT <<- NULL, add = TRUE)
-    processx::run(shiny::runApp(system.file("ShinyStan", package = "shinystan"), launch.browser = FALSE, port = 8080, 
-                  host = "127.0.0.1", display.mode = "normal"))
-}
+# .launchShinyApp <- function(sso) {
+#     .SHINYSTAN_OBJECT <<- sso
+#     on.exit(.SHINYSTAN_OBJECT <<- NULL, add = TRUE)
+#     
+#     p <- processx::process$new("Rscript", c('-e','shiny::runApp(system.file("ShinyStan", package = "shinystan"), launch.browser = FALSE, port = 8080, host = "127.0.0.1", display.mode = "normal")'),
+#                                cleanup = TRUE)
+# }
 

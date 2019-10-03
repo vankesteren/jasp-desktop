@@ -64,7 +64,13 @@ Form
         {
             CheckBox { label: qsTr("Trace plots")           ; name: "traceplot" }
             CheckBox { label: qsTr("Parameter diagnostics") ; name: "pardiag"  }
-            CheckBox { label: qsTr("ShinyStan app") ; name: "shinylaunch"  }
+//            Button {
+//                text: qsTr("Launch ShinyStan") ;
+//                name: "shinylaunch" ;
+//                onClicked: {
+//                    Qt.openUrlExternally("http://127.0.0.1:8080")
+//                }
+//            }
         }
     }
     Section
