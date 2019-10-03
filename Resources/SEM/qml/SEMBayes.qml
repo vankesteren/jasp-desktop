@@ -64,6 +64,7 @@ Form
         {
             CheckBox { label: qsTr("Trace plots")           ; name: "traceplot" }
             CheckBox { label: qsTr("Parameter diagnostics") ; name: "pardiag"  }
+            CheckBox { label: qsTr("ShinyStan app") ; name: "shinylaunch"  }
         }
     }
     Section
