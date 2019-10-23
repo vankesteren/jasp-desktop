@@ -20,10 +20,15 @@
 			"qml":		"SEMSimple.qml",
 			"function":	"SEMSimple"
 		},
-        {
-            "title":	"Mediation Analysis",
-            "qml":		"MediationAnalysis.qml",
-            "function":	"MediationAnalysis"
-        }
+                {
+                    "title":	"Mediation Analysis",
+                    "qml":	"MediationAnalysis.qml",
+                    "function":	"MediationAnalysis"
+                },
+                {
+                    "title":	"Latent Growth Curve",
+                    "qml":	"LatentGrowthCurve.qml",
+                    "function":	"LatentGrowthCurve"
+                }
 	]
 }
