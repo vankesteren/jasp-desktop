@@ -26,58 +26,102 @@ Form
 
     VariablesForm
     {
+        height: 420
         AvailableVariablesList
         {
             name: "availableVariables"
         }
         AssignedVariablesList
         {
-            name: "observations"
+            name: "variables"
             title: qsTr("Variables")
             suggestedColumns: ["scale"]
+            id: variables
+        }
+        AssignedVariablesList
+        {
+            name: "regressions"
+            title: qsTr("Regressions")
+            suggestedColumns: ["scale"]
+        }
+        AssignedVariablesList
+        {
+            name: "covariates"
+            title: qsTr("Time-varying covariates")
+            suggestedColumns: ["scale"]
+            //listViewType: "RepeatedMeasures"
+            //source: variables.name
         }
     }
 
-    JagsTableView
+    AssignedVariablesList
     {
-        name        :   "timings"
-        tableType   :   "initialValues"
-        source      :   [{ name: "observations"}]
-        itemType    :   "integer"
+        name: "timings"
+        title: qsTr("Timings")
+        source: "variables"
+        draggable: false
+        width: form.width * 2 / 5
+        height: 140
+
+        ExtraControlColumn
+        {
+            type: "DoubleField"
+            properties: {"negativeValues": true}
+            name: "timing"
+        }
     }
 
     Section
     {
         title: qsTr("Model Options")
-        columns: 1
-
-        GroupBox
+        Group
         {
-            title: qsTr("Model Options")
-            CheckBox { label: qsTr("Include mean structure")      ; name: "includemeanstructure"   ; id: meanstructure }
-            CheckBox { label: qsTr("Assume factors uncorrelated") ; name: "uncorrelatedFactors"    }
-            CheckBox { label: qsTr("Fix exogenous covariates")    ; name: "fixExogenousCovariates" ; checked: true ; visible: false }
-            ComboBox
+            title: qsTr("Growth curve shape")
+            CheckBox
             {
-                label: qsTr("Factor Scaling")
-                name: "identify"
-                values: [
-                    { label: qsTr("Factor variances"),	value: "factor"  },
-                    { label: qsTr("Marker variable"),	value: "marker"  },
-                    { label: qsTr("Effects coding"),	value: "effects" }
-                ]
+                label: qsTr("Intercept")
+                name: "intercept"
+                id: intercept
+                checked: true
+            }
+            CheckBox
+            {
+                label: qsTr("Linear")
+                name: "linear"
+                id: linear
+                enabled: intercept.checked
+                checked: true
+            }
+            CheckBox
+            {
+                label: qsTr("Quadratic")
+                name: "quadratic"
+                id: quadratic
+                enabled: linear.checked
+                checked: if (!linear.checked) return false
+            }
+            CheckBox
+            {
+                label: qsTr("Cubic")
+                name: "cubic"
+                id: cubic
+                enabled: quadratic.checked
+                checked: if (!quadratic.checked) return false
             }
         }
 
-        GroupBox
+        Group
         {
-            title: qsTr("Residual Covariances")
-            VariablesForm
+            CheckBox
             {
-                id: rescov
-                height: 120
-                AvailableVariablesList {name: "observedvars";	syncModels: factors.name	}
-                AssignedVariablesList { name: "rescov";			listViewType: "Pairs"		}
+                label: qsTr("Covarying latent curve")
+                name: "covar"
+                enabled: linear.checked
+                checked: true
+            }
+            CheckBox {
+                label: qsTr("Standardized estimates")
+                name: "std"
             }
         }
     }
@@ -110,7 +154,7 @@ Form
 
     Section
     {
-        text: qsTr("Multigroup CFA")
+        text: qsTr("Multigroup LGCM")
         DropDown
         {
             label: qsTr("Grouping variable") ;
@@ -118,17 +162,6 @@ Form
             showVariableTypeIcon: true;
             addEmptyValue: true;
         } // No model or syncModels: it takes all variables per default
-        DropDown
-        {
-            label: qsTr("Invariance testing")
-            name: "invariance"
-            model: ListModel {
-                ListElement { key: qsTr("Configural") ; value: "configural"  }
-                ListElement { key: qsTr("Metric")     ; value: "metric"  }
-                ListElement { key: qsTr("Scalar")     ; value: "scalar" }
-                ListElement { key: qsTr("Strict")     ; value: "strict" }
-            }
-        }
     }
 
     Section
@@ -143,7 +176,7 @@ Form
                 text: qsTr("Model plot")
                 name: "pathplot"
                 CheckBox { text: qsTr("Show parameters") ; name: "plotpars"  }
-                CheckBox { text: qsTr("Show means")      ; name: "plotmeans"; enabled: meanstructure.checked }
+                CheckBox { text: qsTr("Show means")      ; name: "plotmeans" }
             }
         }
     }
@@ -158,6 +191,13 @@ Form
             RadioButton { text: qsTr("None")  ; name: "lavaan"  ; checked: true }
             RadioButton { text: qsTr("Mplus") ; name: "Mplus" }
             RadioButton { text: qsTr("EQS")   ; name: "EQS"   }
+        }
+
+        RadioButtonGroup {
+            title: qsTr("Missing value handling")
+            name: "missing"
+            RadioButton { text: qsTr("Full Information Maximum Likelihood") ; name: "fiml" ; checked: true }
+            RadioButton { text: qsTr("Exclude cases listwise")              ; name: "listwise"             }
         }
 
         GroupBox
@@ -194,16 +234,6 @@ Form
             RadioButton { text: qsTr("WLS")  ; name: "WLS"      }
             RadioButton { text: qsTr("ULS")  ; name: "ULS"      }
             RadioButton { text: qsTr("DWLS") ; name: "DWLS"     }
-        }
-
-        RadioButtonGroup
-        {
-            title: qsTr("Standardization")
-            name: "std"
-            RadioButton { text: qsTr("None")    ; name: "none"; checked: true }
-            RadioButton { text: qsTr("Latents") ; name: "lv"  }
-            RadioButton { text: qsTr("All")     ; name: "all" }
-            RadioButton { text: qsTr("No X")    ; name: "nox" }
         }
 
         GroupBox
