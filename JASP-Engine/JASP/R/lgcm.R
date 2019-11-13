@@ -211,18 +211,116 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
 }
 
 
-.lgcmPlotCurve <- function(lgcmResult) {
-  # plot the individual-level growth curves
-  preds <- lavaan::predict(lgcmResult)
-  preds <- cbind(preds, matrix(0, nrow(preds), 4 - ncol(preds)))
-  xrange <- range(sapply(options$timings, function(t) t$timing))
-  xx <- seq(xrange[1], xrange[2], length.out = 1000)
-  df_wide <- data.frame(xx = xx, apply(preds, 1, function(b) b[1] + xx*b[2] + xx^2*b[3] + xx^3*b[4]))
-  df_long <- gather(df_wide, key = "Participant", value = "Val", -"xx")
+.lgcmPlotCurve <- function(lgcmResult, options) {
+  N   <- lgcmResult@Data@nobs[[1]]
+  P   <- length(options$variables)
+  idx <- 1:N
+  if (N > options$plot_max_n) {
+    idx <- 1:options$plot_max_n
+    N   <- options$plot_max_n
+  }
   
-  ggplot(df_long, aes(x = xx, y = Val, colour = Participant)) + 
-    geom_line(alpha = min(1, 1/log(nrow(preds)))) +
-    scale_colour_manual(values = rep("#454545", nrow(preds)), guide = FALSE) +
-    labs(y = "Value", x = "Time") +
+  # plot the individual-level growth curves
+  preds   <- lavaan::lavPredict(lgcmResult)[idx,]
+  preds   <- cbind(preds, matrix(0, nrow(preds), 4 - ncol(preds)))
+  timings <- sapply(options$timings, function(t) t$timing)
+  xrange  <- range(timings)
+  xx      <- seq(xrange[1], xrange[2], length.out = 1000)
+  df_wide <- data.frame(xx = xx, apply(preds, 1, function(b) b[1] + xx*b[2] + xx^2*b[3] + xx^3*b[4]))
+  df_long <- tidyr::gather(df_wide, key = "Participant", value = "Val", -"xx")
+  
+  # create raw data points data frame
+  points <- data.frame(lgcmResult@Data@X[[1]])[idx, lgcmResult@Data@ov.names[[1]] %in% options$variables]
+  names(points) <- timings
+  points[["Participant"]] <- paste0("X", 1:nrow(points))
+  points_long <- tidyr::gather(points, key = "xx", value = "Val", -"Participant")
+  points_long[["xx"]] <- as.numeric(points_long[["xx"]])
+  
+  # points may need to be jittered
+  jitwidth <- if (N > 30) diff(range(timings) / (15 * P)) else 0
+  pj <- ggplot2::position_jitter(width = jitwidth)
+  
+  # create the plot
+  ggplot2::ggplot(df_long, ggplot2::aes(x = xx, y = Val)) + 
+    ggplot2::geom_point(data = points_long, position = pj, col = "#454545") +
+    ggplot2::geom_line(ggplot2::aes(colour = Participant), alpha = min(1, 1/log(N))) +
+    ggplot2::scale_colour_manual(values = rep("#454545", N), guide = FALSE) +
+    ggplot2::labs(y = "Value", x = "Time") +
+    ggplot2::theme_minimal()
+}
+
+.lgcmPlotRibbon <- function(lgcmResult, options) {
+  # plot uncertainty ribbon conditional on regressors == 0
+  
+  # get parameter values
+  pe <- lavaan::parameterestimates(lgcmResult)
+  mu <- pe[pe$lhs %in% c("I", "L", "Q", "C") & pe$rhs == "",]
+  addrow <- matrix(0, 4 - nrow(mu), ncol(mu))
+  colnames(addrow) <- names(mu)
+  mu <- rbind(mu, addrow)
+  s2 <- pe[pe$lhs %in% c("I", "L", "Q", "C") & pe$lhs == pe$rhs,]
+  s2 <- rbind(s2, addrow)
+  
+  # create x range
+  timings <- sapply(options$timings, function(t) t$timing)
+  xrange  <- range(timings)
+  xx      <- seq(xrange[1], xrange[2], length.out = 1000)
+  
+  # inner ribbon (with only parameter uncertainty, no variance)
+  # growth curve for a typical person with covariates at 0
+  mu_mu <- mu$est[1] + xx*mu$est[2] + xx^2*mu$est[3] + xx^3*mu$est[4]
+  mu_up <- mu$ci.upper[1] + xx*mu$ci.upper[2] + xx^2*mu$ci.upper[3] + xx^3*mu$ci.upper[4]
+  mu_lo <- mu$ci.lower[1] + xx*mu$ci.lower[2] + xx^2*mu$ci.lower[3] + xx^3*mu$ci.lower[4]
+  
+  
+  # growth curve for draws as if our group were the population
+  mp <- qnorm(0.975)
+  s2_up <- (mu$est[1] + mp*sqrt(s2$est[1])) + 
+    xx   * (mu$est[2] + mp*sqrt(s2$est[2])) + 
+    xx^2 * (mu$est[3] + mp*sqrt(s2$est[3])) + 
+    xx^3 * (mu$est[4] + mp*sqrt(s2$est[4]))
+  s2_lo <- (mu$est[1] - mp*sqrt(s2$est[1])) + 
+    xx   * (mu$est[2] - mp*sqrt(s2$est[2])) + 
+    xx^2 * (mu$est[3] - mp*sqrt(s2$est[3])) + 
+    xx^3 * (mu$est[4] - mp*sqrt(s2$est[4]))
+  
+  # growth curve for groups of people with covariates 0 and parameter uncertainty
+  ms_up <- (mu$ci.upper[1] + mp*sqrt(s2$ci.upper[1])) + 
+    xx   * (mu$ci.upper[2] + mp*sqrt(s2$ci.upper[2])) + 
+    xx^2 * (mu$ci.upper[3] + mp*sqrt(s2$ci.upper[3])) + 
+    xx^3 * (mu$ci.upper[4] + mp*sqrt(s2$ci.upper[4]))
+  ms_lo <- (mu$ci.lower[1] - mp*sqrt(s2$ci.upper[1])) + 
+    xx   * (mu$ci.lower[2] - mp*sqrt(s2$ci.upper[2])) + 
+    xx^2 * (mu$ci.lower[3] - mp*sqrt(s2$ci.upper[3])) + 
+    xx^3 * (mu$ci.lower[4] - mp*sqrt(s2$ci.upper[4]))
+  
+  fac <- forcats::fct_rev(forcats::as_factor(rep(c("mu", "s2", "ms"), each = 1000)))
+  
+  df    <- data.frame(xx = rep(xx, 3), up = c(mu_up, s2_up, ms_up), lo = c(mu_lo, s2_lo, ms_lo), which = fac)
+  mu_df <- data.frame(xx = xx, y = mu_mu) 
+  
+  # create raw data points data frame
+  points <- data.frame(lgcmResult@Data@X[[1]])[idx, lgcmResult@Data@ov.names[[1]] %in% options$variables]
+  names(points) <- timings
+  points[["Participant"]] <- paste0("X", 1:nrow(points))
+  points_long <- tidyr::gather(points, key = "xx", value = "Val", -"Participant")
+  points_long[["xx"]] <- as.numeric(points_long[["xx"]])
+  
+  # points may need to be jittered
+  jitwidth <- if (N > 30) diff(range(timings) / (15 * P)) else 0
+  pj <- ggplot2::position_jitter(width = jitwidth)
+  
+  ggplot2::ggplot(df, mapping = ggplot2::aes(x = xx)) +
+    ggplot2::geom_ribbon(ggplot2::aes(ymax = up, ymin = lo, fill = which)) +
+    ggplot2::geom_line(data = mu_df, col = "#454545", ggplot2::aes(y = y)) +
+    ggplot2::geom_point(ggplot2::aes(y = Val), data = points_long, position = pj, col = "#454545") +
+    ggplot2::scale_fill_manual(
+      values = c("#ABABAB", "#909090", "#777777"),
+      guide  = 'legend', 
+      labels = c("Curve + variance + uncertainty", 
+                 "Curve + variance", 
+                 "Curve + parameter uncertainty")
+    ) +
+    labs(fill = "", x = "Time", y = "Value") +
     theme_minimal()
 }
