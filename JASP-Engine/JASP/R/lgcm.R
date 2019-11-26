@@ -19,21 +19,21 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   jaspResults[["optionslist"]] <- createJaspHtml(paste(capture.output(str(options)), collapse = "\n"),
                                                  class = "jasp-code", position = 0, title = "Options")
   
-  jaspResults[["optionslist2"]] <- createJaspHtml(paste(capture.output(dput(options)), collapse = "\n"),
-                                                 class = "jasp-code", position = 0, title = "Options")
-  
-  ready <- length(options$variables) > 2
-  
-  if (ready)
-    jaspResults[["model_syntax"]] <- createJaspHtml(
-      .lgcmOptionsToMod(options, FALSE), class = "jasp-code", position = 1, title = "Model Syntax"
-    )
-  
-  # Preprocess options
-  options <- .lgcmPreprocessOptions(options)
+  ready <- length(options[["variables"]]) > 2
   
   # Read dataset
   dataset <- .lgcmReadData(dataset, options)
+  
+  print(colnames(dataset))
+  
+  # Preprocess options
+  options <- .lgcmPreprocessOptions(dataset, options)
+  
+  # Enrich dataset
+  dataset <- .lgcmEnrichData(dataset, options)
+  
+  jaspResults[["optionslist"]] <- createJaspHtml(paste(capture.output(str(options)), collapse = "\n"),
+                                                 class = "jasp-code", position = 0, title = "Options")
   
   # Error checking
   errors <- .lgcmCheckErrors(dataset, options)
@@ -42,19 +42,54 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   modelContainer <- .lgcmModelContainer(jaspResults, options)
   
   # output
-  .lgcmFitTable(modelContainer, dataset, options, ready)
+  if (ready) {
+    jaspResults[["model_syntax"]] <- createJaspHtml(
+      text     = .lgcmOptionsToMod(options, FALSE), 
+      class    = "jasp-code", 
+      position = 1, 
+      title    = "Model Syntax"
+    )
+  }
+  .lgcmFitTable( modelContainer, dataset, options, ready)
+  .lgcmCurvePlot(modelContainer, dataset, options, ready)
   
 }
 
 # Preprocessing functions ----
-.lgcmPreprocessOptions <- function(options) {
-  # No preprocessing necessary (yet)
+.lgcmPreprocessOptions <- function(dataset, options) {
+  # add dummy names
+  if (length(options[["categorical"]]) > 0) {
+    frml <- as.formula(paste("~", paste(.v(options[["categorical"]]), collapse = "+")))
+    dumnames <- colnames(model.matrix(frml, dataset))[-1]
+    options[["dummy_names"]] <- stringr::str_replace_all(
+      string      = dumnames, 
+      pattern     = .v(options[["categorical"]]), 
+      replacement = options[["categorical"]]
+    )
+  }
   return(options)
 }
 
 .lgcmReadData <- function(dataset, options) {
   if (!is.null(dataset)) return(dataset)
-  .readDataSetToEnd(columns = c(options$variables, options$regressions, options$covariates))
+  .readDataSetToEnd(columns = c(
+    options[["variables"]], 
+    options[["regressions"]], 
+    options[["categorical"]], 
+    options[["covariates"]]
+  ))
+  
+  return(dataset)
+}
+
+.lgcmEnrichData <- function(dataset, options) {
+  # Sneakily add dummies
+  if (length(options[["categorical"]]) > 0) {
+    mm <- model.matrix(as.formula(paste("~", .v(options[["categorical"]]))), dataset)[,-1]
+    colnames(mm) <- .v(options[["dummy_names"]])
+    dataset <- cbind(dataset, mm)
+  }
+  return(dataset)
 }
 
 .lgcmCheckErrors <- function(dataset, options) {
@@ -65,13 +100,13 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
 # Results functions ----
 .lgcmComputeResults <- function(modelContainer, dataset, options) {
   lgcmResult <- try(lavaan::growth(
-    model           = .lgcmOptionsToMod(options),
-    data            = dataset,
-    se              = ifelse(options$se == "bootstrap", "standard", options$se),
-    mimic           = options$mimic,
-    estimator       = options$estimator,
-    std.ov          = options$std,
-    missing         = options$missing
+    model     = .lgcmOptionsToMod(options),
+    data      = dataset,
+    se        = ifelse(options[["se"]] == "bootstrap", "standard", options[["se"]]),
+    mimic     = options[["mimic"]],
+    estimator = options[["estimator"]],
+    std.ov    = options[["std"]],
+    missing   = options[["missing"]]
   ))
   
   if (inherits(lgcmResult, "try-error")) {
@@ -101,19 +136,19 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   
   
   # Bootstrapping with interruptible progress bar
-  if (options$se == "bootstrap") {
-    startProgressbar(options$bootstrapNumber)
+  if (options[["se"]] == "bootstrap") {
+    startProgressbar(options[["bootstrapNumber"]])
     
     boot_1      <- lavaan::bootstrapLavaan(lgcmResult, R = 1)
-    bootres     <- matrix(0, options$bootstrapNumber, length(boot_1))
+    bootres     <- matrix(0, options[["bootstrapNumber"]], length(boot_1))
     bootres[1,] <- boot_1
-    for (i in 2:options$bootstrapNumber) {
+    for (i in 2:options[["bootstrapNumber"]]) {
       bootres[i,] <- lavaan::bootstrapLavaan(lgcmResult, 1)
       progressbarTick()
     }
     
     lgcmResult@boot       <- list(coef = bootres)
-    lgcmResult@Options$se <- "bootstrap"
+    lgcmResult@options[["se"]] <- "bootstrap"
   }
   
   # Save cfaResult as state so it's available even when opts don't change
@@ -123,7 +158,7 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
 
 .lgcmOptionsToMod <- function(options, base64 = TRUE) {
   if (!base64) .v <- I
-  timings <- sapply(options$timings, function(t) t$timing)
+  timings <- sapply(options[["timings"]], function(t) t$timing)
   
   # Header info
   Hed <- paste0(
@@ -133,24 +168,24 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   )
   
   # Basic LGCM curve information
-  Int <- if (options$intercept)
-    paste("I =~", paste0("1*", .v(options$variables), collapse = " + "))
+  Int <- if (options[["intercept"]])
+    paste("I =~", paste0("1*", .v(options[["variables"]]), collapse = " + "))
   else NULL
-  Lin <- if (options$linear) 
-    paste("\nL =~", paste0(timings, "*", .v(options$variables), collapse = " + "))
+  Lin <- if (options[["linear"]]) 
+    paste("\nL =~", paste0(timings, "*", .v(options[["variables"]]), collapse = " + "))
   else NULL
-  Qua <- if (options$quadratic)
-    paste("\nQ =~", paste0(timings^2, "*", .v(options$variables), collapse = " + "))
+  Qua <- if (options[["quadratic"]])
+    paste("\nQ =~", paste0(timings^2, "*", .v(options[["variables"]]), collapse = " + "))
   else NULL
-  Cub <- if (options$cubic)
-    paste("\nC =~", paste0(timings^3, "*", .v(options$variables), collapse = " + "))
+  Cub <- if (options[["cubic"]])
+    paste("\nC =~", paste0(timings^3, "*", .v(options[["variables"]]), collapse = " + "))
   else NULL
   LGC <- paste0("\n# Growth curve\n", Int, Lin, Qua, Cub)
   
-  curve <- c("I", "L", "Q", "C")[c(options$intercept, options$linear, options$quadratic, options$cubic)]
+  curve <- c("I", "L", "Q", "C")[c(options[["intercept"]], options[["linear"]], options[["quadratic"]], options[["cubic"]])]
   
   # Covarying latents
-  if (!options$covar) {
+  if (!options[["covar"]]) {
     Cov <- "\n\n# Suppress latent covariance"
     for (i in seq_along(curve))
       for (j in seq_along(curve))
@@ -160,16 +195,21 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   }
   
   # Add regressions
-  Reg <- if (length(options$regressions) > 0)
+  Reg <- if (length(options[["regressions"]]) > 0)
     paste0("\n\n# Regressions\n", paste(curve, collapse = " + "), " ~ ", 
-           paste(.v(options$regressions), collapse = " + "))
+           paste(.v(options[["regressions"]]), collapse = " + "))
   else NULL
+  
+  # Add dummy variables
+  Dum <- if (length(options[["dummy_names"]]) > 0)
+    paste0("\n\n# Dummy-coded categorical predictors\n", paste(curve, collapse = " + "), " ~ ", 
+           paste(.v(options[["dummy_names"]]), collapse = " + "))
   
   # Add time-varying covariates
   # eww this is hard
   
   # Put everything together
-  paste0(Hed, LGC, Cov, Reg)
+  paste0(Hed, LGC, Cov, Reg, Dum)
 }
 
 # Output functions ----
@@ -210,43 +250,69 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   maintab[["pvalue"]] <- c(NA, fm["pvalue"])
 }
 
+.lgcmCurvePlot <- function(modelContainer, dataset, options, ready) {
+  if (!options[["curveplot"]] || !is.null(modelContainer[["curveplot"]])) return()
+  curveplot <- createJaspPlot(title = "Curve plot")
+  curveplot$dependOn("curveplot")
+  modelContainer[["curveplot"]] <- curveplot
+  
+  if (!ready || modelContainer$getError()) return()
+  
+  lgcmResult <- modelContainer[["model"]][["object"]]
+  
+  curveplot$plotObject <- .lgcmComputeCurvePlot(lgcmResult, dataset, options)
+  
+}
 
-.lgcmPlotCurve <- function(lgcmResult, options) {
+.lgcmComputeCurvePlot <- function(lgcmResult, dataset, options) {
   N   <- lgcmResult@Data@nobs[[1]]
-  P   <- length(options$variables)
+  P   <- length(options[["variables"]])
   idx <- 1:N
-  if (N > options$plot_max_n) {
-    idx <- 1:options$plot_max_n
-    N   <- options$plot_max_n
+  if (N > options[["plot_max_n"]]) {
+    idx <- 1:options[["plot_max_n"]]
+    N   <- options[["plot_max_n"]]
   }
+  ctgcl <- length(options[["categorical"]]) > 0
   
   # plot the individual-level growth curves
   preds   <- lavaan::lavPredict(lgcmResult)[idx,]
   preds   <- cbind(preds, matrix(0, nrow(preds), 4 - ncol(preds)))
-  timings <- sapply(options$timings, function(t) t$timing)
+  timings <- sapply(options[["timings"]], function(t) t$timing)
   xrange  <- range(timings)
   xx      <- seq(xrange[1], xrange[2], length.out = 1000)
   df_wide <- data.frame(xx = xx, apply(preds, 1, function(b) b[1] + xx*b[2] + xx^2*b[3] + xx^3*b[4]))
   df_long <- tidyr::gather(df_wide, key = "Participant", value = "Val", -"xx")
   
+  if (ctgcl) df_long[[options[["categorical"]]]] <- rep(dataset[[options[["categorical"]]]], each = 1000)
+  
   # create raw data points data frame
-  points <- data.frame(lgcmResult@Data@X[[1]])[idx, lgcmResult@Data@ov.names[[1]] %in% options$variables]
+  points <- data.frame(lgcmResult@Data@X[[1]])[idx, lgcmResult@Data@ov.names[[1]] %in% options[["variables"]]]
   names(points) <- timings
   points[["Participant"]] <- paste0("X", 1:nrow(points))
   points_long <- tidyr::gather(points, key = "xx", value = "Val", -"Participant")
   points_long[["xx"]] <- as.numeric(points_long[["xx"]])
   
+  if (ctgcl) points_long[[options[["categorical"]]]] <- rep(dataset[[options[["categorical"]]]], length(timings))
+  
   # points may need to be jittered
   jitwidth <- if (N > 30) diff(range(timings) / (15 * P)) else 0
-  pj <- ggplot2::position_jitter(width = jitwidth)
+  pos <- ggplot2::position_jitter(width = jitwidth)
   
+  # lines may need to be transparent
+  cc <- if (ctgcl) length(unique(points_long[[options[["categorical"]]]])) else 1
+  transparency <- min(1, (log(cc) + 1) / log(N))
+    
   # create the plot
-  ggplot2::ggplot(df_long, ggplot2::aes(x = xx, y = Val)) + 
-    ggplot2::geom_point(data = points_long, position = pj, col = "#454545") +
-    ggplot2::geom_line(ggplot2::aes(colour = Participant), alpha = min(1, 1/log(N))) +
-    ggplot2::scale_colour_manual(values = rep("#454545", N), guide = FALSE) +
-    ggplot2::labs(y = "Value", x = "Time") +
-    ggplot2::theme_minimal()
+  p <- 
+    ggplot2::ggplot(df_long, ggplot2::aes(x = xx, y = Val, group = Participant)) + 
+    ggplot2::geom_point(data = points_long, position = pos) +
+    ggplot2::geom_line(alpha = transparency, position = pos) +
+    ggplot2::labs(y = "Value", x = "Time")
+  
+  if (ctgcl) 
+    return(p + ggplot2::aes_(colour = as.name(options[["categorical"]]), shape = as.name(options[["categorical"]])))
+  else 
+    return(JASPgraphs::themeJasp(p))
 }
 
 .lgcmPlotRibbon <- function(lgcmResult, options) {
@@ -262,7 +328,7 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   s2 <- rbind(s2, addrow)
   
   # create x range
-  timings <- sapply(options$timings, function(t) t$timing)
+  timings <- sapply(options[["timings"]], function(t) t$timing)
   xrange  <- range(timings)
   xx      <- seq(xrange[1], xrange[2], length.out = 1000)
   
@@ -300,7 +366,7 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   mu_df <- data.frame(xx = xx, y = mu_mu) 
   
   # create raw data points data frame
-  points <- data.frame(lgcmResult@Data@X[[1]])[idx, lgcmResult@Data@ov.names[[1]] %in% options$variables]
+  points <- data.frame(lgcmResult@Data@X[[1]])[idx, lgcmResult@Data@ov.names[[1]] %in% options[["variables"]]]
   names(points) <- timings
   points[["Participant"]] <- paste0("X", 1:nrow(points))
   points_long <- tidyr::gather(points, key = "xx", value = "Val", -"Participant")

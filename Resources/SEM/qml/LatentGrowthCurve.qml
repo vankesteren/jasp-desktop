@@ -46,6 +46,12 @@ Form
         }
         AssignedVariablesList
         {
+            name: "categorical"
+            title: qsTr("Categorical")
+            suggestedColumns: ["ordinal", "nominal", "nominalText"]
+        }
+        AssignedVariablesList
+        {
             name: "covariates"
             title: qsTr("Time-varying covariates")
             suggestedColumns: ["scale"]
@@ -170,7 +176,16 @@ Form
         GroupBox
         {
             title: "Plots"
-            CheckBox { text: qsTr("Misfit plot")     ; name: "misfitplot" }
+            CheckBox {
+                text: qsTr("Curve plot")
+                name: "curveplot"
+                IntegerField {
+                    name: "plot_max_n"
+                    defaultValue: 150
+                    negativeValues: false
+                }
+            }
+            CheckBox { text: qsTr("Misfit plot")    ; name: "misfitplot"   }
             CheckBox
             {
                 text: qsTr("Model plot")
