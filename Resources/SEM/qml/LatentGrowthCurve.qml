@@ -47,6 +47,7 @@ Form
         AssignedVariablesList
         {
             name: "categorical"
+            id: categorical
             title: qsTr("Categorical")
             suggestedColumns: ["ordinal", "nominal", "nominalText"]
         }
@@ -69,12 +70,15 @@ Form
         width: form.width * 2 / 5
         height: 140
 
-        ExtraControlColumn
-        {
-            type: "DoubleField"
-            properties: {"negativeValues": true}
-            name: "timing"
-        }
+        rowComponents:
+        [
+               Component { DoubleField {
+                    name: "timing"
+                    negativeValues: true
+                    defaultValue: rowIndex
+                    useExternalBorder: false
+                } }
+        ]
     }
 
     Section
@@ -179,8 +183,17 @@ Form
             CheckBox {
                 text: qsTr("Curve plot")
                 name: "curveplot"
+                DropDown {
+                    name: "plot_categorical"
+                    label: "Colour lines by"
+                    source: "categorical"
+                    addEmptyValue: true
+                    enabled: categorical.count > 0
+                }
+
                 IntegerField {
                     name: "plot_max_n"
+                    text: "Maximum number of lines"
                     defaultValue: 150
                     negativeValues: false
                 }

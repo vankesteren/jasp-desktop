@@ -24,8 +24,6 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   # Read dataset
   dataset <- .lgcmReadData(dataset, options)
   
-  print(colnames(dataset))
-  
   # Preprocess options
   options <- .lgcmPreprocessOptions(dataset, options)
   
@@ -78,8 +76,6 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
     options[["categorical"]], 
     options[["covariates"]]
   ))
-  
-  return(dataset)
 }
 
 .lgcmEnrichData <- function(dataset, options) {
@@ -108,7 +104,6 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
     std.ov    = options[["std"]],
     missing   = options[["missing"]]
   ))
-  
   if (inherits(lgcmResult, "try-error")) {
     modelContainer$setError(paste(
       "Model error:", 
@@ -219,7 +214,7 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   } else {
     modelContainer <- createJaspContainer()
     modelContainer$dependOn(c(
-      "variables", "regressions", "covariates", "timings", 
+      "variables", "regressions", "covariates", "categorical", "timings", 
       "intercept", "linear", "quadratic", "cubic", "covar",
       "se", "bootstrapNumber"
     ))
@@ -252,15 +247,16 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
 
 .lgcmCurvePlot <- function(modelContainer, dataset, options, ready) {
   if (!options[["curveplot"]] || !is.null(modelContainer[["curveplot"]])) return()
-  curveplot <- createJaspPlot(title = "Curve plot")
-  curveplot$dependOn("curveplot")
+  curveplot <- createJaspPlot(title = "Curve plot", width = 480, height = 320)
+  curveplot$dependOn(c("curveplot", "plot_categorical", "plot_n_max"))
   modelContainer[["curveplot"]] <- curveplot
-  
   if (!ready || modelContainer$getError()) return()
   
   lgcmResult <- modelContainer[["model"]][["object"]]
   
-  curveplot$plotObject <- .lgcmComputeCurvePlot(lgcmResult, dataset, options)
+  plt <- .lgcmComputeCurvePlot(lgcmResult, dataset, options)
+  
+  curveplot$plotObject <- plt
   
 }
 
@@ -272,10 +268,10 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
     idx <- 1:options[["plot_max_n"]]
     N   <- options[["plot_max_n"]]
   }
-  ctgcl <- length(options[["categorical"]]) > 0
+  ctgcl <- options[["plot_categorical"]] != ""
   
   # plot the individual-level growth curves
-  preds   <- lavaan::lavPredict(lgcmResult)[idx,]
+  preds   <- lavaan::lavPredict(lgcmResult)[idx, , drop = FALSE]
   preds   <- cbind(preds, matrix(0, nrow(preds), 4 - ncol(preds)))
   timings <- sapply(options[["timings"]], function(t) t$timing)
   xrange  <- range(timings)
@@ -283,23 +279,24 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   df_wide <- data.frame(xx = xx, apply(preds, 1, function(b) b[1] + xx*b[2] + xx^2*b[3] + xx^3*b[4]))
   df_long <- tidyr::gather(df_wide, key = "Participant", value = "Val", -"xx")
   
-  if (ctgcl) df_long[[options[["categorical"]]]] <- rep(dataset[[options[["categorical"]]]], each = 1000)
+  if (ctgcl) df_long[[options[["plot_categorical"]]]] <- rep(dataset[[.v(options[["plot_categorical"]])]], each = 1000)
   
   # create raw data points data frame
-  points <- data.frame(lgcmResult@Data@X[[1]])[idx, lgcmResult@Data@ov.names[[1]] %in% options[["variables"]]]
+  points <- data.frame(lgcmResult@Data@X[[1]])[idx, lgcmResult@Data@ov.names[[1]] %in% .v(options[["variables"]])]
   names(points) <- timings
   points[["Participant"]] <- paste0("X", 1:nrow(points))
   points_long <- tidyr::gather(points, key = "xx", value = "Val", -"Participant")
   points_long[["xx"]] <- as.numeric(points_long[["xx"]])
   
-  if (ctgcl) points_long[[options[["categorical"]]]] <- rep(dataset[[options[["categorical"]]]], length(timings))
+  if (ctgcl) 
+    points_long[[options[["plot_categorical"]]]] <- rep(dataset[[.v(options[["plot_categorical"]])]], length(timings))
   
   # points may need to be jittered
   jitwidth <- if (N > 30) diff(range(timings) / (15 * P)) else 0
   pos <- ggplot2::position_jitter(width = jitwidth)
   
   # lines may need to be transparent
-  cc <- if (ctgcl) length(unique(points_long[[options[["categorical"]]]])) else 1
+  cc <- if (ctgcl) length(unique(points_long[[options[["plot_categorical"]]]])) else 1
   transparency <- min(1, (log(cc) + 1) / log(N))
     
   # create the plot
@@ -310,9 +307,10 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
     ggplot2::labs(y = "Value", x = "Time")
   
   if (ctgcl) 
-    return(p + ggplot2::aes_(colour = as.name(options[["categorical"]]), shape = as.name(options[["categorical"]])))
+    return(p + ggplot2::aes_(colour = as.name(options[["plot_categorical"]]), 
+                             shape  = as.name(options[["plot_categorical"]])))
   else 
-    return(JASPgraphs::themeJasp(p))
+    return(p)
 }
 
 .lgcmPlotRibbon <- function(lgcmResult, options) {
@@ -320,7 +318,7 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   
   # get parameter values
   pe <- lavaan::parameterestimates(lgcmResult)
-  mu <- pe[pe$lhs %in% c("I", "L", "Q", "C") & pe$rhs == "",]
+  mu <- pe[pe$lhs %in% c("I", "L", "Q", "C") & pe$rhs == "", ]
   addrow <- matrix(0, 4 - nrow(mu), ncol(mu))
   colnames(addrow) <- names(mu)
   mu <- rbind(mu, addrow)
