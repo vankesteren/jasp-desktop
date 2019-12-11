@@ -48,8 +48,10 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
       title    = "Model Syntax"
     )
   }
-  .lgcmFitTable( modelContainer, dataset, options, ready)
-  .lgcmCurvePlot(modelContainer, dataset, options, ready)
+  .lgcmFitTable(        modelContainer, dataset, options, ready )
+  .lgcmParameterTables( modelContainer, dataset, options, ready )
+  .lgcmCurvePlot(       modelContainer, dataset, options, ready )
+  .lgcmMisfitPlot(      modelContainer, dataset, options, ready )
   
 }
 
@@ -231,7 +233,10 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   maintab$addColumnInfo(name = "chisq",  title = "\u03a7\u00b2", type = "number", format = "dp:3")
   maintab$addColumnInfo(name = "df",     title = "df",           type = "integer")
   maintab$addColumnInfo(name = "pvalue", title = "p",            type = "number", format = "dp:3;p:.001")
-  modelContainer[["maintab"]] <- maintab
+  
+  modelContainer[["maintab"]] <- createJaspContainer("Model fit")
+  modelContainer[["maintab"]]$position <- 1
+  modelContainer[["maintab"]][["chisqtab"]] <- maintab
   
   # add data to the table!
   if (!ready) return()
@@ -245,20 +250,145 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   maintab[["pvalue"]] <- c(NA, fm["pvalue"])
 }
 
+.lgcmParameterTables <- function(modelContainer, dataset, options, ready) {
+  partabs <- if (!is.null(modelContainer[["partabs"]])) {
+    modelContainer[["partabs"]]
+  } else {
+    modelContainer[["partabs"]] <- createJaspContainer("Parameter estimates")
+  }
+  
+  partabs$position <- 2
+  partabs$dependOn("std")
+  
+  # create tables
+  
+  # latent curve
+  latcur <- createJaspTable("Latent curve")
+  latcur$addColumnInfo("component", title = "Component",  type = "string", combine = TRUE)
+  latcur$addColumnInfo("param",     title = "Parameter",  type = "string")
+  latcur$addColumnInfo("est",       title = "Estimate",   type = "number", format = "dp:3")
+  latcur$addColumnInfo("se" ,       title = "Std. Error", type = "number", format = "dp:3")
+  latcur$addColumnInfo("pval",      title = "p" ,         type = "number", format = "dp:3;p:.001")
+  latcur$addColumnInfo("cilo",      title = "Lower" ,     type = "number", format = "dp:3", 
+                       overtitle = "95% Confidence Interval")
+  latcur$addColumnInfo("ciup",      title = "Upper" ,     type = "number", format = "dp:3", 
+                       overtitle = "95% Confidence Interval")
+  modelContainer[["partabs"]][["latcur"]] <- latcur
+  
+  # covariance
+  if (options[["covar"]]) {
+    latcov <- createJaspTable("Latent covariances")
+    latcov$addColumnInfo("cov",  title = "Covariance", type = "string")
+    latcov$addColumnInfo("est",  title = "Estimate",   type = "number", format = "dp:3")
+    latcov$addColumnInfo("se" ,  title = "Std. Error", type = "number", format = "dp:3")
+    latcov$addColumnInfo("zval", title = "z-value" ,   type = "number", format = "dp:3")
+    latcov$addColumnInfo("pval", title = "p" ,         type = "number", format = "dp:3;p:.001")
+    latcov$addColumnInfo("cilo", title = "Lower" ,     type = "number", format = "dp:3", 
+                         overtitle = "95% Confidence Interval")
+    latcov$addColumnInfo("ciup",      title = "Upper" ,     type = "number", format = "dp:3", 
+                         overtitle = "95% Confidence Interval")
+    modelContainer[["partabs"]][["latcov"]] <- latcov
+
+  }
+  
+  # regressions
+  latreg <- createJaspTable("Regressions")
+  latreg$addColumnInfo("component", title = "Component",  type = "string", combine = TRUE)
+  latreg$addColumnInfo("predictor", title = "Predictor",  type = "string")
+  latreg$addColumnInfo("est",       title = "Estimate",   type = "number", format = "dp:3")
+  latreg$addColumnInfo("se" ,       title = "Std. Error", type = "number", format = "dp:3")
+  latreg$addColumnInfo("zval",      title = "z-value" ,   type = "number", format = "dp:3")
+  latreg$addColumnInfo("pval",      title = "p" ,         type = "number", format = "dp:3;p:.001")
+  latreg$addColumnInfo("cilo",      title = "Lower" ,     type = "number", format = "dp:3", 
+                       overtitle = "95% Confidence Interval")
+  latreg$addColumnInfo("ciup",      title = "Upper" ,     type = "number", format = "dp:3", 
+                       overtitle = "95% Confidence Interval")
+  modelContainer[["partabs"]][["latreg"]] <- latreg
+  
+  
+  if (!ready || modelContainer$getError()) return()
+  
+  lgcmResult <- modelContainer[["model"]][["object"]]
+  pe <- lavaan::parameterestimates(lgcmResult, level = options[["ciWidth"]], standardized = options[["std"]])
+  slope_names <- c(
+    "^I$" = "Intercept", 
+    "^L$" = "Linear slope", 
+    "^Q$"= "Quadratic slope", 
+    "^C$" = "Cubic slope"
+  )
+  
+  pe[["lhs"]] <- stringr::str_replace_all(pe[["lhs"]], slope_names)
+  pe[["rhs"]] <- stringr::str_replace_all(pe[["rhs"]], slope_names)
+  
+  # latent curve
+  pecur <- pe[pe$lhs %in% slope_names & (pe$op == "~1" | pe$rhs == pe$lhs),]
+  pecur <- pecur[order(pecur$lhs, rev(pecur$op)),]
+  latcur[["component"]] <- pecur[["lhs"]]
+  latcur[["param"]]     <- ifelse(pecur[["op"]] == "~1", "Mean", "Variance")
+  latcur[["est"]]       <- pecur[["est"]]
+  latcur[["se" ]]       <- pecur[["se"]]
+  latcur[["zval"]]      <- pecur[["z"]]
+  latcur[["pval"]]      <- pecur[["pvalue"]]
+  latcur[["cilo"]]      <- pecur[["ci.lower"]]
+  latcur[["ciup"]]      <- pecur[["ci.upper"]]
+  
+  # covariance
+  if (options[["covar"]]) {
+    pecov <- pe[pe$lhs %in% slope_names & pe$op == "~~" & pe$lhs != pe$rhs,]
+    latcov[["cov"]]  <- paste(pecov[["lhs"]], "\u2B64\u00A0", pecov[["rhs"]])
+    latcov[["est"]]  <- pecov[["est"]]
+    latcov[["se" ]]  <- pecov[["se"]]
+    latcov[["zval"]] <- pecov[["z"]]
+    latcov[["pval"]] <- pecov[["pvalue"]]
+    latcov[["cilo"]] <- pecov[["ci.lower"]]
+    latcov[["ciup"]] <- pecov[["ci.upper"]]
+  }
+  
+  # regressions
+  pereg <- pe[pe$lhs %in% slope_names & pe$op == "~",]
+  latreg[["component"]] <- pereg[["lhs"]]
+  latreg[["predictor"]] <- .unv(pereg[["rhs"]])
+  latreg[["est"]]       <- pereg[["est"]]
+  latreg[["se" ]]       <- pereg[["se"]]
+  latreg[["zval"]]      <- pereg[["z"]]
+  latreg[["pval"]]      <- pereg[["pvalue"]]
+  latreg[["cilo"]]      <- pereg[["ci.lower"]]
+  latreg[["ciup"]]      <- pereg[["ci.upper"]]
+}
+
 .lgcmCurvePlot <- function(modelContainer, dataset, options, ready) {
   if (!options[["curveplot"]] || !is.null(modelContainer[["curveplot"]])) return()
   curveplot <- createJaspPlot(title = "Curve plot", width = 480, height = 320)
   curveplot$dependOn(c("curveplot", "plot_categorical", "plot_n_max"))
+  curveplot$position <- 8
   modelContainer[["curveplot"]] <- curveplot
   if (!ready || modelContainer$getError()) return()
   
   lgcmResult <- modelContainer[["model"]][["object"]]
-  
   plt <- .lgcmComputeCurvePlot(lgcmResult, dataset, options)
-  
   curveplot$plotObject <- plt
-  
 }
+
+
+
+.lgcmMisfitPlot <- function(modelContainer, dataset, options, ready) {
+  if (!options[["misfitplot"]] || !is.null(modelContainer[["misfitplot"]])) return()
+  wh <- 50 + 50*length(options[["variables"]])
+  misplot <- createJaspPlot(title = "Misfit plot", width = wh, height = wh)
+  misplot$dependOn("misfitplot")
+  misplot$position <- 9
+  modelContainer[["misfitplot"]] <- misplot
+  if (!ready || modelContainer$getError()) return()
+  
+  lgcmResult <- modelContainer[["model"]][["object"]]
+  rescor <- lavaan::residuals(lgcmResult, type = "cor")
+  cc <- rescor[["cov"]]
+  cc[upper.tri(cc)] <- NA
+  gg <- .resCorToMisFitPlot(cc)
+  misplot$plotObject <- gg
+}
+
+
 
 .lgcmComputeCurvePlot <- function(lgcmResult, dataset, options) {
   N   <- lgcmResult@Data@nobs[[1]]
@@ -303,7 +433,7 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   p <- 
     ggplot2::ggplot(df_long, ggplot2::aes(x = xx, y = Val, group = Participant)) + 
     ggplot2::geom_point(data = points_long, position = pos) +
-    ggplot2::geom_line(alpha = transparency, position = pos) +
+    ggplot2::geom_line(alpha = transparency) +
     ggplot2::labs(y = "Value", x = "Time")
   
   if (ctgcl) 
