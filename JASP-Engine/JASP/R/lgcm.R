@@ -268,6 +268,7 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   latcur$addColumnInfo("param",     title = "Parameter",  type = "string")
   latcur$addColumnInfo("est",       title = "Estimate",   type = "number", format = "dp:3")
   latcur$addColumnInfo("se" ,       title = "Std. Error", type = "number", format = "dp:3")
+  latcur$addColumnInfo("zval",      title = "z-value" ,   type = "number", format = "dp:3")
   latcur$addColumnInfo("pval",      title = "p" ,         type = "number", format = "dp:3;p:.001")
   latcur$addColumnInfo("cilo",      title = "Lower" ,     type = "number", format = "dp:3", 
                        overtitle = "95% Confidence Interval")
