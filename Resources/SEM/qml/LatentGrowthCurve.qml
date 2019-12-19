@@ -68,8 +68,8 @@ Form
         title: qsTr("Timings")
         source: "variables"
         draggable: false
-        width: form.width * 2 / 5
-        height: 140
+        preferredWidth: form.width * 2 / 5
+        preferredHeight: 140
 
         rowComponents:
         [
@@ -161,19 +161,6 @@ Form
             }
             CheckBox { label: qsTr("Show lavaan syntax")         ; name: "showSyntax" }
         }
-    }
-
-    Section
-    {
-        text: qsTr("Multigroup LGCM")
-        debug: true
-        DropDown
-        {
-            label: qsTr("Grouping variable") ;
-            name: "groupvar";
-            showVariableTypeIcon: true;
-            addEmptyValue: true;
-        } // No model or syncModels: it takes all variables per default
     }
 
     Section
@@ -279,6 +266,19 @@ Form
             CheckBox { text: qsTr("Add scalings parameters")         ; name: "addScalingParameters"        ; checked: true }
             CheckBox { text: qsTr("Correlate dependent variables")   ; name: "correlateDependentVariables" ; checked: true }
         }
+    }    
+
+    Section
+    {
+        text: qsTr("Multigroup LGCM")
+        debug: true
+        DropDown
+        {
+            label: qsTr("Grouping variable") ;
+            name: "groupvar";
+            showVariableTypeIcon: true;
+            addEmptyValue: true;
+        } // No model or syncModels: it takes all variables per default
     }
 }
 
