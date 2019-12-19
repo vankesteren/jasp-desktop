@@ -51,7 +51,8 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   .lgcmFitTable(        modelContainer, dataset, options, ready )
   .lgcmParameterTables( modelContainer, dataset, options, ready )
   .lgcmCurvePlot(       modelContainer, dataset, options, ready )
-  .lgcmMisfitPlot(      modelContainer, dataset, options, ready )
+  .lgcmPathPlot(        modelContainer, dataset, options, ready )
+  #.lgcmMisfitPlot(      modelContainer, dataset, options, ready )
   
 }
 
@@ -218,7 +219,7 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
     modelContainer$dependOn(c(
       "variables", "regressions", "covariates", "categorical", "timings", 
       "intercept", "linear", "quadratic", "cubic", "covar",
-      "se", "bootstrapNumber"
+      "se", "bootstrapNumber", "std"
     ))
     jaspResults[["modelContainer"]] <- modelContainer
   }
@@ -258,7 +259,6 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   }
   
   partabs$position <- 2
-  partabs$dependOn("std")
   
   # create tables
   
@@ -370,27 +370,6 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   curveplot$plotObject <- plt
 }
 
-
-
-.lgcmMisfitPlot <- function(modelContainer, dataset, options, ready) {
-  if (!options[["misfitplot"]] || !is.null(modelContainer[["misfitplot"]])) return()
-  wh <- 50 + 50*length(options[["variables"]])
-  misplot <- createJaspPlot(title = "Misfit plot", width = wh, height = wh)
-  misplot$dependOn("misfitplot")
-  misplot$position <- 9
-  modelContainer[["misfitplot"]] <- misplot
-  if (!ready || modelContainer$getError()) return()
-  
-  lgcmResult <- modelContainer[["model"]][["object"]]
-  rescor <- lavaan::residuals(lgcmResult, type = "cor")
-  cc <- rescor[["cov"]]
-  cc[upper.tri(cc)] <- NA
-  gg <- .resCorToMisFitPlot(cc)
-  misplot$plotObject <- gg
-}
-
-
-
 .lgcmComputeCurvePlot <- function(lgcmResult, dataset, options) {
   N   <- lgcmResult@Data@nobs[[1]]
   P   <- length(options[["variables"]])
@@ -429,19 +408,69 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   # lines may need to be transparent
   cc <- if (ctgcl) length(unique(points_long[[options[["plot_categorical"]]]])) else 1
   transparency <- min(1, (log(cc) + 1) / log(N))
-    
+  
   # create the plot
   p <- 
     ggplot2::ggplot(df_long, ggplot2::aes(x = xx, y = Val, group = Participant)) + 
     ggplot2::geom_point(data = points_long, position = pos) +
     ggplot2::geom_line(alpha = transparency) +
-    ggplot2::labs(y = "Value", x = "Time")
+    ggplot2::labs(y = "Value", x = "Time") +
+    JASPgraphs::themeJaspRaw()
   
   if (ctgcl) 
     return(p + ggplot2::aes_(colour = as.name(options[["plot_categorical"]]), 
                              shape  = as.name(options[["plot_categorical"]])))
   else 
     return(p)
+}
+
+.lgcmPathPlot <- function(modelContainer, dataset, options, ready) {
+  if (!options$pathplot || !is.null(modelContainer[["pathplot"]])) return()
+  
+  modelContainer[["pathplot"]] <- createJaspPlot(title = "Model plot", height = 500, width = 640)
+  modelContainer[["pathplot"]]$dependOn(c("pathplot", "plotmeans", "plotpars"))
+  modelContainer[["pathplot"]]$position <- 9
+  
+  if (!ready || modelContainer$getError()) return()
+  
+  lgcmResult <- modelContainer[["model"]][["object"]]
+  png() # semplot opens a device even though we specify doNotPlot, so we hack.
+  pathplot <- semPlot::semPaths(
+    object         = .lavToPlotObj(lgcmResult),
+    DoNotPlot      = TRUE,
+    ask            = FALSE,
+    layout         = "tree2",
+    intercepts     = options$plotmeans,
+    whatLabels     = ifelse(options$plotpars, "par", "name"),
+    edge.color     = "black",
+    color          = list(lat = "#EAEAEA", man = "#EAEAEA", int = "#FFFFFF"),
+    border.width   = 1.5,
+    edge.label.cex = 0.9,
+    lty            = 2,
+    title          = FALSE
+  )
+  dev.off()
+  
+  modelContainer[["pathplot"]]$plotObject <- pathplot
+}
+
+
+# Unused functions ----
+.lgcmMisfitPlot <- function(modelContainer, dataset, options, ready) {
+  if (!options[["misfitplot"]] || !is.null(modelContainer[["misfitplot"]])) return()
+  wh <- 50 + 50*length(options[["variables"]])
+  misplot <- createJaspPlot(title = "Misfit plot", width = wh, height = wh)
+  misplot$dependOn("misfitplot")
+  misplot$position <- 9
+  modelContainer[["misfitplot"]] <- misplot
+  if (!ready || modelContainer$getError()) return()
+  
+  lgcmResult <- modelContainer[["model"]][["object"]]
+  rescor <- lavaan::residuals(lgcmResult, type = "cor")
+  cc <- rescor[["cov"]]
+  cc[upper.tri(cc)] <- NA
+  gg <- .resCorToMisFitPlot(cc)
+  misplot$plotObject <- gg
 }
 
 .lgcmPlotRibbon <- function(lgcmResult, options) {

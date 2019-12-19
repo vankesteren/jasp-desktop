@@ -56,6 +56,7 @@ Form
             name: "covariates"
             title: qsTr("Time-varying covariates")
             suggestedColumns: ["scale"]
+            debug: true
             //listViewType: "RepeatedMeasures"
             //source: variables.name
         }
@@ -165,6 +166,7 @@ Form
     Section
     {
         text: qsTr("Multigroup LGCM")
+        debug: true
         DropDown
         {
             label: qsTr("Grouping variable") ;
@@ -198,7 +200,7 @@ Form
                     negativeValues: false
                 }
             }
-            CheckBox { text: qsTr("Misfit plot")    ; name: "misfitplot"   }
+            CheckBox { text: qsTr("Misfit plot")    ; name: "misfitplot"   ; debug: true}
             CheckBox
             {
                 text: qsTr("Model plot")
