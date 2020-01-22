@@ -130,10 +130,6 @@ Form
                 enabled: linear.checked
                 checked: true
             }
-            CheckBox {
-                label: qsTr("Standardized estimates")
-                name: "std"
-            }
         }
     }
 
@@ -142,7 +138,7 @@ Form
         title: qsTr("Additional Output")
         GroupBox
         {
-            CheckBox { label: qsTr("Additional Fit Measures")   ; name: "additionalfits"   }
+            CheckBox { label: qsTr("Additional Fit Measures")   ; name: "outputAdditionalFitMeasures"   }
             CheckBox { label: qsTr("R-Squared")                 ; name: "rsquared"         }
         }
         GroupBox
@@ -169,6 +165,20 @@ Form
         GroupBox
         {
             title: "Plots"
+            DropDown
+            {
+                name: "colorPalette"
+                label: qsTr("Color palette")
+                indexDefaultValue: 0
+                values:
+                [
+                    { label: qsTr("Colorblind"),		value: "colorblind"		},
+                    { label: qsTr("Colorblind Alt."),	value: "colorblind3"	},
+                    { label: qsTr("Viridis"),			value: "viridis"		},
+                    { label: qsTr("ggplot2"),			value: "ggplot2"		},
+                    { label: qsTr("Gray"),				value: "gray"			}
+                ]
+            }
             CheckBox {
                 text: qsTr("Curve plot")
                 name: "curveplot"
@@ -187,7 +197,7 @@ Form
                     negativeValues: false
                 }
             }
-            CheckBox { text: qsTr("Misfit plot")    ; name: "misfitplot"   ; debug: true}
+            CheckBox { text: qsTr("Misfit plot")    ; name: "misfitplot"   ; debug: true }
             CheckBox
             {
                 text: qsTr("Model plot")

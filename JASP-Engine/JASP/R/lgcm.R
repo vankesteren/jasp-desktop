@@ -16,9 +16,6 @@
 #
 
 LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
-  jaspResults[["optionslist"]] <- createJaspHtml(paste(capture.output(str(options)), collapse = "\n"),
-                                                 class = "jasp-code", position = 0, title = "Options")
-  
   ready <- length(options[["variables"]]) > 2
   
   # Read dataset
@@ -30,9 +27,6 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   # Enrich dataset
   dataset <- .lgcmEnrichData(dataset, options)
   
-  jaspResults[["optionslist"]] <- createJaspHtml(paste(capture.output(str(options)), collapse = "\n"),
-                                                 class = "jasp-code", position = 0, title = "Options")
-  
   # Error checking
   errors <- .lgcmCheckErrors(dataset, options)
   
@@ -40,18 +34,12 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   modelContainer <- .lgcmModelContainer(jaspResults, options)
   
   # output
-  if (ready) {
-    jaspResults[["model_syntax"]] <- createJaspHtml(
-      text     = .lgcmOptionsToMod(options, FALSE), 
-      class    = "jasp-code", 
-      position = 1, 
-      title    = "Model Syntax"
-    )
-  }
-  .lgcmFitTable(        modelContainer, dataset, options, ready )
-  .lgcmParameterTables( modelContainer, dataset, options, ready )
-  .lgcmCurvePlot(       modelContainer, dataset, options, ready )
-  .lgcmPathPlot(        modelContainer, dataset, options, ready )
+  .lgcmFitTable(            modelContainer, dataset, options, ready )
+  .lgcmParameterTables(     modelContainer, dataset, options, ready )
+  .lcgmAdditionalFitTables( modelContainer, dataset, options, ready )
+  .lgcmCurvePlot(           modelContainer, dataset, options, ready )
+  .lgcmPathPlot(            modelContainer, dataset, options, ready )
+  .lgcmSyntax(              modelContainer, dataset, options, ready )
   #.lgcmMisfitPlot(      modelContainer, dataset, options, ready )
   
 }
@@ -82,11 +70,14 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
 }
 
 .lgcmEnrichData <- function(dataset, options) {
-  # Sneakily add dummies
+  if (interactive()) browser()
+  # Add dummies
   if (length(options[["categorical"]]) > 0) {
-    mm <- model.matrix(as.formula(paste("~", .v(options[["categorical"]]))), dataset)[,-1]
+    frml <- as.formula(paste("~", paste(.v(options[["categorical"]]), collapse = "+")))
+    mm <- model.matrix(frml, dataset)[,-1, drop = FALSE]
     colnames(mm) <- .v(options[["dummy_names"]])
     dataset <- cbind(dataset, mm)
+    
   }
   return(dataset)
 }
@@ -104,7 +95,6 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
     se        = ifelse(options[["se"]] == "bootstrap", "standard", options[["se"]]),
     mimic     = options[["mimic"]],
     estimator = options[["estimator"]],
-    std.ov    = options[["std"]],
     missing   = options[["missing"]]
   ))
   if (inherits(lgcmResult, "try-error")) {
@@ -117,12 +107,12 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   
   admissible <- .withWarnings(lavaan:::lav_object_post_check(lgcmResult))
   
-  if (!admissible$value) {
-    modelContainer$setError(paste(
-      "The model is not admissible:", 
-      .decodeVarsInMessage(names(dataset), admissible$warnings[[1]]$message))
-    )
-  }
+  # if (!admissible$value) {
+  #   modelContainer$setError(paste(
+  #     "The model is not admissible:", 
+  #     .decodeVarsInMessage(names(dataset), admissible$warnings[[1]]$message))
+  #   )
+  # }
   
   if (!lgcmResult@optim$converged) {
     modelContainer$setError("The model could not be estimated due to nonconvergence.")
@@ -219,7 +209,7 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
     modelContainer$dependOn(c(
       "variables", "regressions", "covariates", "categorical", "timings", 
       "intercept", "linear", "quadratic", "cubic", "covar",
-      "se", "bootstrapNumber", "std"
+      "se", "bootstrapNumber"
     ))
     jaspResults[["modelContainer"]] <- modelContainer
   }
@@ -293,24 +283,26 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   }
   
   # regressions
-  latreg <- createJaspTable("Regressions")
-  latreg$addColumnInfo("component", title = "Component",  type = "string", combine = TRUE)
-  latreg$addColumnInfo("predictor", title = "Predictor",  type = "string")
-  latreg$addColumnInfo("est",       title = "Estimate",   type = "number", format = "dp:3")
-  latreg$addColumnInfo("se" ,       title = "Std. Error", type = "number", format = "dp:3")
-  latreg$addColumnInfo("zval",      title = "z-value" ,   type = "number", format = "dp:3")
-  latreg$addColumnInfo("pval",      title = "p" ,         type = "number", format = "dp:3;p:.001")
-  latreg$addColumnInfo("cilo",      title = "Lower" ,     type = "number", format = "dp:3", 
-                       overtitle = "95% Confidence Interval")
-  latreg$addColumnInfo("ciup",      title = "Upper" ,     type = "number", format = "dp:3", 
-                       overtitle = "95% Confidence Interval")
-  modelContainer[["partabs"]][["latreg"]] <- latreg
+  if (length(c(options[["regressions"]], options[["categorical"]])) > 0) {
+    latreg <- createJaspTable("Regressions")
+    latreg$addColumnInfo("component", title = "Component",  type = "string", combine = TRUE)
+    latreg$addColumnInfo("predictor", title = "Predictor",  type = "string")
+    latreg$addColumnInfo("est",       title = "Estimate",   type = "number", format = "dp:3")
+    latreg$addColumnInfo("se" ,       title = "Std. Error", type = "number", format = "dp:3")
+    latreg$addColumnInfo("zval",      title = "z-value" ,   type = "number", format = "dp:3")
+    latreg$addColumnInfo("pval",      title = "p" ,         type = "number", format = "dp:3;p:.001")
+    latreg$addColumnInfo("cilo",      title = "Lower" ,     type = "number", format = "dp:3", 
+                         overtitle = "95% Confidence Interval")
+    latreg$addColumnInfo("ciup",      title = "Upper" ,     type = "number", format = "dp:3", 
+                         overtitle = "95% Confidence Interval")
+    modelContainer[["partabs"]][["latreg"]] <- latreg
+  }
   
   
   if (!ready || modelContainer$getError()) return()
   
   lgcmResult <- modelContainer[["model"]][["object"]]
-  pe <- lavaan::parameterestimates(lgcmResult, level = options[["ciWidth"]], standardized = options[["std"]])
+  pe <- lavaan::parameterestimates(lgcmResult, level = options[["ciWidth"]])
   slope_names <- c(
     "^I$" = "Intercept", 
     "^L$" = "Linear slope", 
@@ -346,21 +338,97 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   }
   
   # regressions
-  pereg <- pe[pe$lhs %in% slope_names & pe$op == "~",]
-  latreg[["component"]] <- pereg[["lhs"]]
-  latreg[["predictor"]] <- .unv(pereg[["rhs"]])
-  latreg[["est"]]       <- pereg[["est"]]
-  latreg[["se" ]]       <- pereg[["se"]]
-  latreg[["zval"]]      <- pereg[["z"]]
-  latreg[["pval"]]      <- pereg[["pvalue"]]
-  latreg[["cilo"]]      <- pereg[["ci.lower"]]
-  latreg[["ciup"]]      <- pereg[["ci.upper"]]
+  if (length(c(options[["regressions"]], options[["categorical"]])) > 0) {
+    pereg <- pe[pe$lhs %in% slope_names & pe$op == "~",]
+    latreg[["component"]] <- pereg[["lhs"]]
+    latreg[["predictor"]] <- .unv(pereg[["rhs"]])
+    latreg[["est"]]       <- pereg[["est"]]
+    latreg[["se" ]]       <- pereg[["se"]]
+    latreg[["zval"]]      <- pereg[["z"]]
+    latreg[["pval"]]      <- pereg[["pvalue"]]
+    latreg[["cilo"]]      <- pereg[["ci.lower"]]
+    latreg[["ciup"]]      <- pereg[["ci.upper"]]
+  }
 }
+
+.lcgmAdditionalFitTables <- function(modelContainer, dataset, options, ready) {
+  if (!options[["outputAdditionalFitMeasures"]]) return()
+  
+  fitms <- createJaspContainer(gettext("Additional Fit measures"))
+  fitms$dependOn("outputAdditionalFitMeasures")
+  fitms$position <- 3
+  modelContainer[["fitMeasures"]] <- fitms
+  
+  # Fit indices
+  fitms[["indices"]] <- fitin <- createJaspTable(gettext("Fit indices"))
+  fitin$addColumnInfo(name = "index", title = gettext("Index"), type = "string")
+  fitin$addColumnInfo(name = "value", title = gettext("Value"), type = "number", format = "sf:4;dp:3")
+  fitin$setExpectedSize(rows = 1, cols = 2)
+  
+  # information criteria
+  fitms[["incrits"]] <- fitic <- createJaspTable(gettext("Information criteria"))
+  fitic$addColumnInfo(name = "index", title = "",               type = "string")
+  fitic$addColumnInfo(name = "value", title = gettext("Value"), type = "number", format = "sf:4;dp:3")
+  fitic$setExpectedSize(rows = 1, cols = 2)
+  
+  # other fit measures
+  fitms[["others"]] <- fitot <- createJaspTable(gettext("Other fit measures"))
+  fitot$addColumnInfo(name = "index", title = gettext("Metric"), type = "string")
+  fitot$addColumnInfo(name = "value", title = gettext("Value"),  type = "number", format = "sf:4;dp:3")
+  fitot$setExpectedSize(rows = 1, cols = 2)
+  
+  if (!ready || modelContainer$getError()) return()
+  
+  # actually compute the fit measures
+  fm <- lavaan::fitmeasures(modelContainer[["model"]][["object"]])
+  
+  # Fit indices
+  fitin[["index"]] <- c(
+    gettext("Comparative Fit Index (CFI)"),
+    gettext("Tucker-Lewis Index (TLI)"),
+    gettext("Bentler-Bonett Non-normed Fit Index (NNFI)"),
+    gettext("Bentler-Bonett Normed Fit Index (NFI)"),
+    gettext("Parsimony Normed Fit Index (PNFI)"),
+    gettext("Bollen's Relative Fit Index (RFI)"),
+    gettext("Bollen's Incremental Fit Index (IFI)"),
+    gettext("Relative Noncentrality Index (RNI)")
+  )
+  fitin[["value"]] <- fm[c("cfi", "tli", "nnfi", "nfi", "pnfi", "rfi", "ifi", "rni")]
+  
+  # information criteria
+  fitic[["index"]] <- c(
+    gettext("Log-likelihood"),
+    gettext("Number of free parameters"),
+    gettext("Akaike (AIC)"),
+    gettext("Bayesian (BIC)"),
+    gettext("Sample-size adjusted Bayesian (SSABIC)")
+  )
+  fitic[["value"]] <- fm[c("logl", "npar", "aic", "bic", "bic2")]
+  
+  # other fitmeasures
+  fitot[["index"]] <- c(
+    gettext("Root mean square error of approximation (RMSEA)"),
+    gettext("RMSEA 90% CI lower bound"),
+    gettext("RMSEA 90% CI upper bound"),
+    gettext("RMSEA p-value"),
+    gettext("Standardized root mean square residual (SRMR)"),
+    gettextf("Hoelter's critical N (%s = .05)","\u03B1"),
+    gettextf("Hoelter's critical N (%s = .01)","\u03B1"),
+    gettext("Goodness of fit index (GFI)"),
+    gettext("McDonald fit index (MFI)"),
+    gettext("Expected cross validation index (ECVI)")
+  )
+  fitot[["value"]] <- fm[c("rmsea", "rmsea.ci.lower", "rmsea.ci.upper", "rmsea.pvalue",
+                           "srmr", "cn_05", "cn_01", "gfi", "mfi", "ecvi")]
+  
+  return()
+}
+
 
 .lgcmCurvePlot <- function(modelContainer, dataset, options, ready) {
   if (!options[["curveplot"]] || !is.null(modelContainer[["curveplot"]])) return()
   curveplot <- createJaspPlot(title = "Curve plot", width = 480, height = 320)
-  curveplot$dependOn(c("curveplot", "plot_categorical", "plot_n_max"))
+  curveplot$dependOn(c("curveplot", "plot_categorical", "plot_max_n", "colorPalette"))
   curveplot$position <- 8
   modelContainer[["curveplot"]] <- curveplot
   if (!ready || modelContainer$getError()) return()
@@ -379,6 +447,8 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
     N   <- options[["plot_max_n"]]
   }
   ctgcl <- options[["plot_categorical"]] != ""
+
+  if (interactive()) browser()
   
   # plot the individual-level growth curves
   preds   <- lavaan::lavPredict(lgcmResult)[idx, , drop = FALSE]
@@ -389,7 +459,7 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   df_wide <- data.frame(xx = xx, apply(preds, 1, function(b) b[1] + xx*b[2] + xx^2*b[3] + xx^3*b[4]))
   df_long <- tidyr::gather(df_wide, key = "Participant", value = "Val", -"xx")
   
-  if (ctgcl) df_long[[options[["plot_categorical"]]]] <- rep(dataset[[.v(options[["plot_categorical"]])]], each = 1000)
+  if (ctgcl) df_long[[options[["plot_categorical"]]]] <- rep(dataset[[.v(options[["plot_categorical"]])]][idx], each = 1000)
   
   # create raw data points data frame
   points <- data.frame(lgcmResult@Data@X[[1]])[idx, lgcmResult@Data@ov.names[[1]] %in% .v(options[["variables"]])]
@@ -399,7 +469,7 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   points_long[["xx"]] <- as.numeric(points_long[["xx"]])
   
   if (ctgcl) 
-    points_long[[options[["plot_categorical"]]]] <- rep(dataset[[.v(options[["plot_categorical"]])]], length(timings))
+    points_long[[options[["plot_categorical"]]]] <- rep(dataset[[.v(options[["plot_categorical"]])]][idx], length(timings))
   
   # points may need to be jittered
   jitwidth <- if (N > 30) diff(range(timings) / (15 * P)) else 0
@@ -418,8 +488,10 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
     JASPgraphs::themeJaspRaw()
   
   if (ctgcl) 
-    return(p + ggplot2::aes_(colour = as.name(options[["plot_categorical"]]), 
-                             shape  = as.name(options[["plot_categorical"]])))
+    return(p + 
+             ggplot2::aes_(colour = as.name(options[["plot_categorical"]]), 
+                             shape  = as.name(options[["plot_categorical"]])) +
+             JASPgraphs::scale_JASPcolor_discrete(options[["colorPalette"]]))
   else 
     return(p)
 }
@@ -452,6 +524,17 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   dev.off()
   
   modelContainer[["pathplot"]]$plotObject <- pathplot
+}
+
+.lgcmSyntax <- function(modelContainer, dataset, options, ready) {
+  if (!ready || !options[["showSyntax"]]) return()
+  
+  modelContainer[["model_syntax"]] <- createJaspHtml(
+    text     = .lgcmOptionsToMod(options, FALSE), 
+    class    = "jasp-code", 
+    position = 10, 
+    title    = "Model Syntax"
+  )
 }
 
 
