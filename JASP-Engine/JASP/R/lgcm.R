@@ -37,6 +37,7 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   .lgcmFitTable(            modelContainer, dataset, options, ready )
   .lgcmParameterTables(     modelContainer, dataset, options, ready )
   .lcgmAdditionalFitTables( modelContainer, dataset, options, ready )
+  .lcgmRSquaredTable(       modelContainer, dataset, options, ready )
   .lgcmImpliedCovTable(     modelContainer, dataset, options, ready )
   .lgcmResidualCovTable(    modelContainer, dataset, options, ready )
   .lgcmCurvePlot(           modelContainer, dataset, options, ready )
@@ -325,7 +326,7 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   slope_names <- c(
     "^I$" = "Intercept", 
     "^L$" = "Linear slope", 
-    "^Q$"= "Quadratic slope", 
+    "^Q$" = "Quadratic slope", 
     "^C$" = "Cubic slope"
   )
   
@@ -460,6 +461,26 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
                            "srmr", "cn_05", "cn_01", "gfi", "mfi", "ecvi")]
   
   return()
+}
+
+.lcgmRSquaredTable <- function(modelContainer, dataset, options, ready) {
+  if (!options[["rsquared"]] || !is.null(modelContainer[["rsquared"]])) return()
+  
+  tabr2 <- createJaspTable("R-Squared")
+  tabr2$position <- 3.5
+  tabr2$addColumnInfo(name = "__var__", title = "",        type = "string")
+  tabr2$addColumnInfo(name = "rsq",     title = "R\u00B2", type = "number", format = "sf:4;dp:3")
+  tabr2$dependOn("rsquared")
+  modelContainer[["rsquared"]] <- tabr2
+  
+  if (!ready || modelContainer$getError()) return()
+  
+  # get r2 of variables, excluding the latent variables.
+  r2res <- lavaan::inspect(modelContainer[["model"]][["object"]], "r2")
+  r2res <- r2res[!names(r2res) %in% c("I", "L", "Q", "C")]
+  varnames <- .unv(names(r2res))
+  tabr2[["__var__"]] <- varnames
+  tabr2[["rsq"]]     <- r2res
 }
 
 .lgcmImpliedCovTable <- function(modelContainer, dataset, options, ready) {

@@ -145,16 +145,6 @@ Form
         {
             CheckBox { label: qsTr("Implied covariance matrix")  ; name: "impliedCov" }
             CheckBox { label: qsTr("Residual covariance matrix") ; name: "residCov"   }
-            CheckBox {
-                label: qsTr("Modification indices")
-                name: "modIndices"
-                DoubleField {
-                    label: qsTr("Cutoff")
-                    name: "miCutoff"
-                    min: 0
-                    defaultValue: 3.84
-                }
-            }
             CheckBox { label: qsTr("Show lavaan syntax")         ; name: "showSyntax" }
         }
     }
