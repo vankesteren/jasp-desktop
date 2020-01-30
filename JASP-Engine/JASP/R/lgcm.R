@@ -254,7 +254,7 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   } else {
     modelContainer[["partabs"]] <- createJaspContainer("Parameter estimates")
   }
-  
+  partabs$dependOn("std")
   partabs$position <- 2
   
   # create tables
@@ -271,6 +271,13 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
                        overtitle = "95% Confidence Interval")
   latcur$addColumnInfo("ciup",      title = "Upper" ,     type = "number", format = "dp:3", 
                        overtitle = "95% Confidence Interval")
+  
+  if (options[["std"]]) {
+    latcur$addColumnInfo("std.lv",  title = "LV",   type = "number", format = "dp:3", overtitle = "Std. Est.")
+    latcur$addColumnInfo("std.all", title = "All",  type = "number", format = "dp:3", overtitle = "Std. Est.")
+    latcur$addColumnInfo("std.nox", title = "No X", type = "number", format = "dp:3", overtitle = "Std. Est.")
+  }
+  
   modelContainer[["partabs"]][["latcur"]] <- latcur
   
   # covariance
@@ -287,6 +294,13 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
                          overtitle = "95% Confidence Interval")
     latcov$addColumnInfo("ciup",      title = "Upper" ,     type = "number", format = "dp:3", 
                          overtitle = "95% Confidence Interval")
+    
+    if (options[["std"]]) {
+      latcov$addColumnInfo("std.lv",  title = "LV",   type = "number", format = "dp:3", overtitle = "Std. Est.")
+      latcov$addColumnInfo("std.all", title = "All",  type = "number", format = "dp:3", overtitle = "Std. Est.")
+      latcov$addColumnInfo("std.nox", title = "No X", type = "number", format = "dp:3", overtitle = "Std. Est.")
+    }
+    
     modelContainer[["partabs"]][["latcov"]] <- latcov
 
   }
@@ -304,9 +318,17 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
                          overtitle = "95% Confidence Interval")
     latreg$addColumnInfo("ciup",      title = "Upper" ,     type = "number", format = "dp:3", 
                          overtitle = "95% Confidence Interval")
+    
+    if (options[["std"]]) {
+      latreg$addColumnInfo("std.lv",  title = "LV",   type = "number", format = "dp:3", overtitle = "Std. Est.")
+      latreg$addColumnInfo("std.all", title = "All",  type = "number", format = "dp:3", overtitle = "Std. Est.")
+      latreg$addColumnInfo("std.nox", title = "No X", type = "number", format = "dp:3", overtitle = "Std. Est.")
+    }
+    
     modelContainer[["partabs"]][["latreg"]] <- latreg
   }
   
+  # residual variances
   resvar <- createJaspTable("Residual variances")
   resvar$addColumnInfo("var",  title = "Variable",   type = "string")
   resvar$addColumnInfo("est",  title = "Estimate",   type = "number", format = "dp:3")
@@ -317,12 +339,20 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
                        overtitle = "95% Confidence Interval")
   resvar$addColumnInfo("ciup",      title = "Upper" ,     type = "number", format = "dp:3", 
                        overtitle = "95% Confidence Interval")
+  
+  if (options[["std"]]) {
+    resvar$addColumnInfo("std.lv",  title = "LV",   type = "number", format = "dp:3", overtitle = "Std. Est.")
+    resvar$addColumnInfo("std.all", title = "All",  type = "number", format = "dp:3", overtitle = "Std. Est.")
+    resvar$addColumnInfo("std.nox", title = "No X", type = "number", format = "dp:3", overtitle = "Std. Est.")
+  }
+  
   modelContainer[["partabs"]][["resvar"]] <- resvar
   
   if (!ready || modelContainer$getError()) return()
   
   lgcmResult <- modelContainer[["model"]][["object"]]
-  pe <- lavaan::parameterestimates(lgcmResult, level = options[["ciWidth"]])
+  pe <- lavaan::parameterestimates(lgcmResult, level = options[["ciWidth"]], 
+                                   standardized = options[["std"]])
   slope_names <- c(
     "^I$" = "Intercept", 
     "^L$" = "Linear slope", 
@@ -345,6 +375,12 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   latcur[["cilo"]]      <- pecur[["ci.lower"]]
   latcur[["ciup"]]      <- pecur[["ci.upper"]]
   
+  if (options[["std"]]) {
+    latcur[["std.lv"]]  <- pecur[["std.lv"]]
+    latcur[["std.all"]] <- pecur[["std.all"]]
+    latcur[["std.nox"]] <- pecur[["std.nox"]]
+  }
+  
   # covariance
   if (options[["covar"]]) {
     pecov <- pe[pe$lhs %in% slope_names & pe$op == "~~" & pe$lhs != pe$rhs,]
@@ -357,6 +393,11 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
     latcov[["pval"]] <- pecov[["pvalue"]]
     latcov[["cilo"]] <- pecov[["ci.lower"]]
     latcov[["ciup"]] <- pecov[["ci.upper"]]
+    if (options[["std"]]) {
+      latcov[["std.lv"]]  <- pecov[["std.lv"]]
+      latcov[["std.all"]] <- pecov[["std.all"]]
+      latcov[["std.nox"]] <- pecov[["std.nox"]]
+    }
   }
   
   # regressions
@@ -371,6 +412,11 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
     latreg[["pval"]]      <- pereg[["pvalue"]]
     latreg[["cilo"]]      <- pereg[["ci.lower"]]
     latreg[["ciup"]]      <- pereg[["ci.upper"]]
+    if (options[["std"]]) {
+      latreg[["std.lv"]]  <- pereg[["std.lv"]]
+      latreg[["std.all"]] <- pereg[["std.all"]]
+      latreg[["std.nox"]] <- pereg[["std.nox"]]
+    }
   }
   
   # residual variances
@@ -382,6 +428,12 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   resvar[["pval"]] <- perev[["pvalue"]]
   resvar[["cilo"]] <- perev[["ci.lower"]]
   resvar[["ciup"]] <- perev[["ci.upper"]]
+  
+  if (options[["std"]]) {
+    resvar[["std.lv"]]  <- perev[["std.lv"]]
+    resvar[["std.all"]] <- perev[["std.all"]]
+    resvar[["std.nox"]] <- perev[["std.nox"]]
+  }
   
   if (any(perev[["est"]] < 0)) {
     resvar$addFootnote(gettext("Residual variance is negative. This may indicate model misspecification."), 
@@ -468,8 +520,8 @@ LatentGrowthCurve <- function(jaspResults, dataset, options, ...) {
   
   tabr2 <- createJaspTable("R-Squared")
   tabr2$position <- 3.5
-  tabr2$addColumnInfo(name = "__var__", title = "",        type = "string")
-  tabr2$addColumnInfo(name = "rsq",     title = "R\u00B2", type = "number", format = "sf:4;dp:3")
+  tabr2$addColumnInfo(name = "__var__", title = "Variable", type = "string")
+  tabr2$addColumnInfo(name = "rsq",     title = "R\u00B2",  type = "number", format = "sf:4;dp:3")
   tabr2$dependOn("rsquared")
   modelContainer[["rsquared"]] <- tabr2
   
