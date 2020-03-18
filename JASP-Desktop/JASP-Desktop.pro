@@ -631,6 +631,7 @@ RESOURCES += \
 windows:OTHER_FILES += icon.rc
 
 DISTFILES += \
+    ../Resources/SEM/qml/Mimic.qml \
     modules/upgrader/upgrades.json \
     modules/upgrader/upgrades_template.json \
     resources/CC-Attributions.txt

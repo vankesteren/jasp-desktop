@@ -24,6 +24,11 @@
             "title":	"Mediation Analysis",
             "qml":		"MediationAnalysis.qml",
             "function":	"MediationAnalysis"
-        }
+		},
+		{
+            "title":	"MIMIC Analysis",
+            "qml":		"Mimic.qml",
+            "function":	"MIMIC"
+		}
 	]
 }
