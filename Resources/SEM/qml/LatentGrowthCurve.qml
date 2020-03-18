@@ -43,13 +43,15 @@ Form
             name: "regressions"
             title: qsTr("Regressions")
             suggestedColumns: ["scale"]
+            allowedColumns: ["scale"]
         }
         AssignedVariablesList
         {
             name: "categorical"
             id: categorical
-            title: qsTr("Categorical")
-            suggestedColumns: ["ordinal", "nominal", "nominalText"]
+            title: qsTr("Factor")
+            suggestedColumns: ["ordinal", "nominal"]
+            allowedColumns: ["ordinal", "nominal", "nominalText"]
         }
         AssignedVariablesList
         {
