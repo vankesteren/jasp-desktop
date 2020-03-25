@@ -46,20 +46,15 @@ Form
 	Section
 	{
         title: qsTr("Options")
-        ColumnLayout {
-            GroupBox
-            {
-                CheckBox { label: qsTr("Standardized estimates") ; name: "std" }
-                CheckBox { label: qsTr("Lavaan syntax")     ; name: "showSyntax" }
-                CheckBox { label: qsTr("R-squared")         ; name: "rsquared" }
-            }
-            GroupBox
-            {
-                title: qsTr("Additional parameter estimates")
-                CheckBox { label: qsTr("Total indirect effects");  name: "showtotind"; checked: true }
-                CheckBox { label: qsTr("Residual covariances");    name: "showres";    checked: true }
-            }
+
+        GroupBox
+        {
+            CheckBox { label: qsTr("Standardized estimates")    ; name: "std" }
+            CheckBox { label: qsTr("Lavaan syntax")             ; name: "showSyntax" }
+            CheckBox { label: qsTr("R-squared")                 ; name: "rsquared" }
+            CheckBox { label: qsTr("Additional fit measures")   ; name: "additionalfits" }
         }
+
         GroupBox
         {
             CIField {
